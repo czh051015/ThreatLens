@@ -1,0 +1,230 @@
+{
+  "chain": [
+    {
+      "tactic": "execution",
+      "technique": "T1059.005",
+      "first_seen": "2020-09-04T20:09:55.953000Z",
+      "evidence": [
+        "empire_launcher_vbs_2020-09-04160940.json:73",
+        "empire_launcher_vbs_2020-09-04160940.json:77",
+        "empire_launcher_vbs_2020-09-04160940.json:78",
+        "empire_launcher_vbs_2020-09-04160940.json:79",
+        "empire_launcher_vbs_2020-09-04160940.json:81"
+      ]
+    },
+    {
+      "tactic": "execution",
+      "technique": "T1059.001",
+      "first_seen": "2020-09-04T20:09:57.060000Z",
+      "evidence": [
+        "empire_launcher_vbs_2020-09-04160940.json:259",
+        "empire_launcher_vbs_2020-09-04160940.json:328",
+        "empire_launcher_vbs_2020-09-04160940.json:918"
+      ]
+    },
+    {
+      "tactic": "credential-access",
+      "technique": "T1003.001",
+      "first_seen": "2020-08-07T14:32:57.589000Z",
+      "evidence": [
+        "empire_mimikatz_logonpasswords_2020-08-07103224.json:2451",
+        "empire_mimikatz_logonpasswords_2020-08-07103224.json:2460",
+        "empire_mimikatz_logonpasswords_2020-08-07103224.json:2461"
+      ]
+    },
+    {
+      "tactic": "discovery",
+      "technique": "T1033",
+      "first_seen": "2020-08-07T14:32:47.591000Z",
+      "evidence": [
+        "empire_launcher_vbs_2020-09-04160940.json:1820",
+        "empire_mimikatz_logonpasswords_2020-08-07103224.json:282"
+      ]
+    },
+    {
+      "tactic": "discovery",
+      "technique": "T1087.001",
+      "first_seen": "2020-08-07T14:32:47.591000Z",
+      "evidence": [
+        "empire_launcher_vbs_2020-09-04160940.json:1820",
+        "empire_mimikatz_logonpasswords_2020-08-07103224.json:282"
+      ]
+    },
+    {
+      "tactic": "discovery",
+      "technique": "T1526",
+      "first_seen": "2020-11-02T04:39:11.681000Z",
+      "evidence": [
+        "cmd_seatbelt_group_user_2020-11-0216391814.json:148"
+      ]
+    },
+    {
+      "tactic": "discovery",
+      "technique": "T1087",
+      "first_seen": "2020-11-02T04:39:11.681000Z",
+      "evidence": [
+        "cmd_seatbelt_group_user_2020-11-0216391814.json:148"
+      ]
+    },
+    {
+      "tactic": "discovery",
+      "technique": "T1083",
+      "first_seen": "2020-11-02T04:39:11.681000Z",
+      "evidence": [
+        "cmd_seatbelt_group_user_2020-11-0216391814.json:148"
+      ]
+    },
+    {
+      "tactic": "lateral-movement",
+      "technique": "T1021.002",
+      "first_seen": "2020-09-22T18:53:32.342000Z",
+      "evidence": [
+        "covenant_copy_smb_CreateRequest_2020-09-22145302.json:62"
+      ]
+    },
+    {
+      "tactic": "impact",
+      "technique": "T1531",
+      "first_seen": "2020-08-07T14:32:29.370000Z",
+      "evidence": [
+        "empire_launcher_vbs_2020-09-04160940.json:18",
+        "empire_launcher_vbs_2020-09-04160940.json:2001",
+        "empire_mimikatz_logonpasswords_2020-08-07103224.json:31",
+        "empire_mimikatz_logonpasswords_2020-08-07103224.json:648",
+        "empire_mimikatz_logonpasswords_2020-08-07103224.json:651"
+      ]
+    },
+    {
+      "tactic": "defense-evasion",
+      "technique": "T1055",
+      "first_seen": "2020-08-07T14:32:47.604000Z",
+      "evidence": [
+        "empire_launcher_vbs_2020-09-04160940.json:328",
+        "empire_launcher_vbs_2020-09-04160940.json:343",
+        "empire_launcher_vbs_2020-09-04160940.json:1817",
+        "empire_mimikatz_logonpasswords_2020-08-07103224.json:303",
+        "empire_launcher_vbs_2020-09-04160940.json:247"
+      ]
+    },
+    {
+      "tactic": "defense-evasion",
+      "technique": "T1112",
+      "first_seen": "2020-09-04T20:09:55.953000Z",
+      "evidence": [
+        "empire_launcher_vbs_2020-09-04160940.json:73",
+        "empire_launcher_vbs_2020-09-04160940.json:77",
+        "empire_launcher_vbs_2020-09-04160940.json:78",
+        "empire_launcher_vbs_2020-09-04160940.json:79",
+        "empire_launcher_vbs_2020-09-04160940.json:81"
+      ]
+    },
+    {
+      "tactic": "defense-evasion",
+      "technique": "T1685",
+      "first_seen": "2020-09-04T20:10:00.327000Z",
+      "evidence": [
+        "empire_launcher_vbs_2020-09-04160940.json:918"
+      ]
+    }
+  ],
+  "techniques": {
+    "T1531": {
+      "name": "Account Access Removal",
+      "tactics": [
+        "impact"
+      ]
+    },
+    "T1112": {
+      "name": "Modify Registry",
+      "tactics": [
+        "defense-evasion",
+        "persistence"
+      ]
+    },
+    "T1059.005": {
+      "name": "Visual Basic",
+      "tactics": [
+        "execution"
+      ]
+    },
+    "T1055": {
+      "name": "Process Injection",
+      "tactics": [
+        "defense-evasion",
+        "privilege-escalation"
+      ]
+    },
+    "T1059.001": {
+      "name": "PowerShell",
+      "tactics": [
+        "execution"
+      ]
+    },
+    "T1685": {
+      "name": "Disable or Modify Tools",
+      "tactics": [
+        "defense-evasion"
+      ]
+    },
+    "T1033": {
+      "name": "System Owner/User Discovery",
+      "tactics": [
+        "discovery"
+      ]
+    },
+    "T1087.001": {
+      "name": "Local Account",
+      "tactics": [
+        "discovery"
+      ]
+    },
+    "T1003.001": {
+      "name": "LSASS Memory",
+      "tactics": [
+        "credential-access"
+      ]
+    },
+    "T1526": {
+      "name": "Cloud Service Discovery",
+      "tactics": [
+        "discovery"
+      ]
+    },
+    "T1087": {
+      "name": "Account Discovery",
+      "tactics": [
+        "discovery"
+      ]
+    },
+    "T1083": {
+      "name": "File and Directory Discovery",
+      "tactics": [
+        "discovery"
+      ]
+    },
+    "T1021.002": {
+      "name": "SMB/Windows Admin Shares",
+      "tactics": [
+        "lateral-movement"
+      ]
+    }
+  },
+  "summary": "共识别 13 个技术，覆盖 4 个战术阶段",
+  "meta": {
+    "datasets": [
+      "empire_launcher_vbs_2020-09-04160940.json",
+      "empire_mimikatz_logonpasswords_2020-08-07103224.json",
+      "cmd_seatbelt_group_user_2020-11-0216391814.json",
+      "covenant_copy_smb_CreateRequest_2020-09-22145302.json"
+    ],
+    "rule_count": 2816,
+    "rules_variant": "official+custom",
+    "elapsed_sec": 37.5,
+    "gold_techniques": [
+      "T1059.001",
+      "T1003.001",
+      "T1087.001",
+      "T1021.002"
+    ]
+  }
+}

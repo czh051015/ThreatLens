@@ -1,0 +1,316 @@
+{
+  "schema_version": "1.0",
+  "gold": {
+    "techniques": [
+      "T1059.001",
+      "T1003.001",
+      "T1087.001",
+      "T1021.002"
+    ],
+    "techniques_normalized": [
+      "T1003",
+      "T1021",
+      "T1059",
+      "T1087"
+    ],
+    "stages": [
+      "execution",
+      "credential-access",
+      "discovery",
+      "lateral-movement"
+    ]
+  },
+  "versions": {
+    "official": {
+      "rules_variant": "official",
+      "rule_count": 2815,
+      "technique_count": 13,
+      "stage_count": 6,
+      "summary": "共识别 13 个技术，覆盖 4 个战术阶段",
+      "technique_evidence": {
+        "T1059.005": [
+          "empire_launcher_vbs_2020-09-04160940.json:73",
+          "empire_launcher_vbs_2020-09-04160940.json:77",
+          "empire_launcher_vbs_2020-09-04160940.json:78",
+          "empire_launcher_vbs_2020-09-04160940.json:79",
+          "empire_launcher_vbs_2020-09-04160940.json:81"
+        ],
+        "T1059.001": [
+          "empire_launcher_vbs_2020-09-04160940.json:259",
+          "empire_launcher_vbs_2020-09-04160940.json:328",
+          "empire_launcher_vbs_2020-09-04160940.json:918"
+        ],
+        "T1003.001": [
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:2460",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:2461"
+        ],
+        "T1033": [
+          "empire_launcher_vbs_2020-09-04160940.json:1820",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:282"
+        ],
+        "T1087.001": [
+          "empire_launcher_vbs_2020-09-04160940.json:1820",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:282"
+        ],
+        "T1526": [
+          "cmd_seatbelt_group_user_2020-11-0216391814.json:148"
+        ],
+        "T1087": [
+          "cmd_seatbelt_group_user_2020-11-0216391814.json:148"
+        ],
+        "T1083": [
+          "cmd_seatbelt_group_user_2020-11-0216391814.json:148"
+        ],
+        "T1021.002": [
+          "covenant_copy_smb_CreateRequest_2020-09-22145302.json:62"
+        ],
+        "T1531": [
+          "empire_launcher_vbs_2020-09-04160940.json:18",
+          "empire_launcher_vbs_2020-09-04160940.json:2001",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:31",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:648",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:651"
+        ],
+        "T1055": [
+          "empire_launcher_vbs_2020-09-04160940.json:328",
+          "empire_launcher_vbs_2020-09-04160940.json:343",
+          "empire_launcher_vbs_2020-09-04160940.json:1817",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:303",
+          "empire_launcher_vbs_2020-09-04160940.json:247"
+        ],
+        "T1112": [
+          "empire_launcher_vbs_2020-09-04160940.json:73",
+          "empire_launcher_vbs_2020-09-04160940.json:77",
+          "empire_launcher_vbs_2020-09-04160940.json:78",
+          "empire_launcher_vbs_2020-09-04160940.json:79",
+          "empire_launcher_vbs_2020-09-04160940.json:81"
+        ],
+        "T1685": [
+          "empire_launcher_vbs_2020-09-04160940.json:918"
+        ]
+      },
+      "metrics": {
+        "gold_techniques_normalized": [
+          "T1003",
+          "T1021",
+          "T1059",
+          "T1087"
+        ],
+        "predicted_techniques_normalized": [
+          "T1003",
+          "T1021",
+          "T1033",
+          "T1055",
+          "T1059",
+          "T1083",
+          "T1087",
+          "T1112",
+          "T1526",
+          "T1531",
+          "T1685"
+        ],
+        "predicted_techniques_raw": [
+          "T1003.001",
+          "T1021.002",
+          "T1033",
+          "T1055",
+          "T1059.001",
+          "T1059.005",
+          "T1083",
+          "T1087",
+          "T1087.001",
+          "T1112",
+          "T1526",
+          "T1531",
+          "T1685"
+        ],
+        "technique_metrics": {
+          "hits": [
+            "T1003",
+            "T1021",
+            "T1059",
+            "T1087"
+          ],
+          "extra_techniques": [
+            "T1033",
+            "T1055",
+            "T1083",
+            "T1112",
+            "T1526",
+            "T1531",
+            "T1685"
+          ],
+          "missed_techniques": [],
+          "precision": 0.3636,
+          "recall": 1.0
+        },
+        "stage_metrics": {
+          "gold_stages": [
+            "execution",
+            "credential-access",
+            "discovery",
+            "lateral-movement"
+          ],
+          "observed_stages": [
+            "execution",
+            "credential-access",
+            "discovery",
+            "lateral-movement"
+          ],
+          "stage_recall": 1.0,
+          "stage_order_consistency": 1.0
+        }
+      },
+      "decision": {
+        "decision": "llm-low-score-review",
+        "reason": "recall=1.0 高、precision=0.3636 < 0.5 → LLM 空间在降噪/去误报，解释层定位为\"低分证据复核\""
+      }
+    },
+    "official+custom": {
+      "rules_variant": "official+custom",
+      "rule_count": 2816,
+      "technique_count": 13,
+      "stage_count": 6,
+      "summary": "共识别 13 个技术，覆盖 4 个战术阶段",
+      "technique_evidence": {
+        "T1059.005": [
+          "empire_launcher_vbs_2020-09-04160940.json:73",
+          "empire_launcher_vbs_2020-09-04160940.json:77",
+          "empire_launcher_vbs_2020-09-04160940.json:78",
+          "empire_launcher_vbs_2020-09-04160940.json:79",
+          "empire_launcher_vbs_2020-09-04160940.json:81"
+        ],
+        "T1059.001": [
+          "empire_launcher_vbs_2020-09-04160940.json:259",
+          "empire_launcher_vbs_2020-09-04160940.json:328",
+          "empire_launcher_vbs_2020-09-04160940.json:918"
+        ],
+        "T1003.001": [
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:2451",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:2460",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:2461"
+        ],
+        "T1033": [
+          "empire_launcher_vbs_2020-09-04160940.json:1820",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:282"
+        ],
+        "T1087.001": [
+          "empire_launcher_vbs_2020-09-04160940.json:1820",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:282"
+        ],
+        "T1526": [
+          "cmd_seatbelt_group_user_2020-11-0216391814.json:148"
+        ],
+        "T1087": [
+          "cmd_seatbelt_group_user_2020-11-0216391814.json:148"
+        ],
+        "T1083": [
+          "cmd_seatbelt_group_user_2020-11-0216391814.json:148"
+        ],
+        "T1021.002": [
+          "covenant_copy_smb_CreateRequest_2020-09-22145302.json:62"
+        ],
+        "T1531": [
+          "empire_launcher_vbs_2020-09-04160940.json:18",
+          "empire_launcher_vbs_2020-09-04160940.json:2001",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:31",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:648",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:651"
+        ],
+        "T1055": [
+          "empire_launcher_vbs_2020-09-04160940.json:328",
+          "empire_launcher_vbs_2020-09-04160940.json:343",
+          "empire_launcher_vbs_2020-09-04160940.json:1817",
+          "empire_mimikatz_logonpasswords_2020-08-07103224.json:303",
+          "empire_launcher_vbs_2020-09-04160940.json:247"
+        ],
+        "T1112": [
+          "empire_launcher_vbs_2020-09-04160940.json:73",
+          "empire_launcher_vbs_2020-09-04160940.json:77",
+          "empire_launcher_vbs_2020-09-04160940.json:78",
+          "empire_launcher_vbs_2020-09-04160940.json:79",
+          "empire_launcher_vbs_2020-09-04160940.json:81"
+        ],
+        "T1685": [
+          "empire_launcher_vbs_2020-09-04160940.json:918"
+        ]
+      },
+      "metrics": {
+        "gold_techniques_normalized": [
+          "T1003",
+          "T1021",
+          "T1059",
+          "T1087"
+        ],
+        "predicted_techniques_normalized": [
+          "T1003",
+          "T1021",
+          "T1033",
+          "T1055",
+          "T1059",
+          "T1083",
+          "T1087",
+          "T1112",
+          "T1526",
+          "T1531",
+          "T1685"
+        ],
+        "predicted_techniques_raw": [
+          "T1003.001",
+          "T1021.002",
+          "T1033",
+          "T1055",
+          "T1059.001",
+          "T1059.005",
+          "T1083",
+          "T1087",
+          "T1087.001",
+          "T1112",
+          "T1526",
+          "T1531",
+          "T1685"
+        ],
+        "technique_metrics": {
+          "hits": [
+            "T1003",
+            "T1021",
+            "T1059",
+            "T1087"
+          ],
+          "extra_techniques": [
+            "T1033",
+            "T1055",
+            "T1083",
+            "T1112",
+            "T1526",
+            "T1531",
+            "T1685"
+          ],
+          "missed_techniques": [],
+          "precision": 0.3636,
+          "recall": 1.0
+        },
+        "stage_metrics": {
+          "gold_stages": [
+            "execution",
+            "credential-access",
+            "discovery",
+            "lateral-movement"
+          ],
+          "observed_stages": [
+            "execution",
+            "credential-access",
+            "discovery",
+            "lateral-movement"
+          ],
+          "stage_recall": 1.0,
+          "stage_order_consistency": 1.0
+        }
+      },
+      "decision": {
+        "decision": "llm-low-score-review",
+        "reason": "recall=1.0 高、precision=0.3636 < 0.5 → LLM 空间在降噪/去误报，解释层定位为\"低分证据复核\""
+      }
+    }
+  }
+}

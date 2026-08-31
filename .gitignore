@@ -1,0 +1,29 @@
+# ===== Python =====
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ===== 工作记录 / 记忆（.workbuddy 非临时缓存，仅不入版本库） =====
+.workbuddy/
+
+# ===== 备份 =====
+*.bak
+
+# ===== 数据层大仓库原始 clone（不入库；loader 直接读 _src，按需拉取） =====
+edr/data/atomic/_src/
+edr/data/sigma/_src/
+
+# ===== 数据（如需强制入库存金标/小样本，再单独放开） =====
+edr/data/telemetry/*.zip
+
+# ===== 数据层大文件（合计 454M，不入库；README「数据准备」提供下载命令） =====
+edr/data/attack/*.json
+edr/data/telemetry/*.json
+
+# ===== LLM 审计日志（可能含攻击载荷原文，不入库） =====
+evaluation/*.jsonl
+
+# ===== 密钥（不入库） =====
+.env

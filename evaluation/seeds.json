@@ -1,0 +1,88 @@
+{
+  "meta": {
+    "name": "ThreatLens eval seeds",
+    "version": "0.1",
+    "benchmark_source": "Abuse.ch (Feodo Tracker + URLhaus) 为主；冲突/缺失类需人工构造",
+    "ground_truth_note": "真值标签取自 abuse.ch 家族/状态标注；冲突与缺失类按 docs/dev-spec.md §12.2 构造",
+    "total_planned": 15,
+    "filled": 6,
+    "todo": 9
+  },
+  "seeds": [
+    {
+      "id": "normal-001",
+      "category": "正常一致",
+      "input": "162.243.103.246",
+      "ioc_type": "ipv4",
+      "expected": { "threat_level": "高危", "conflict": false, "partial": false },
+      "ground_truth_source": "Feodo Tracker (Emotet C2, malware=Emotet)",
+      "note": "Feodo 命中 + AbuseIPDB/VT 应一致恶意，多源一致 → 高危 block"
+    },
+    {
+      "id": "normal-002",
+      "category": "正常一致",
+      "input": "50.16.16.211",
+      "ioc_type": "ipv4",
+      "expected": { "threat_level": "高危", "conflict": false, "partial": false },
+      "ground_truth_source": "Feodo Tracker (QakBot C2, status=online)",
+      "note": "online QakBot C2，多源应一致恶意"
+    },
+    {
+      "id": "normal-003",
+      "category": "正常一致",
+      "input": "124.6.169.46",
+      "ioc_type": "ipv4",
+      "expected": { "threat_level": "高危", "conflict": false, "partial": false },
+      "ground_truth_source": "URLhaus (malware_download, tags=mirai,Mozi, date=2026-08-28)",
+      "note": "URLhaus 当日恶意载荷分发 IP，可作为多源恶意域名/IP 真值"
+    },
+    {
+      "id": "benign-001",
+      "category": "良性反例",
+      "input": "44d88612fea8a8f36de82e1279befbea",
+      "ioc_type": "md5",
+      "expected": { "threat_level": "低危", "conflict": false, "partial": false },
+      "ground_truth_source": "EICAR 标准 antivirus 测试文件 MD5（良性测试样本，AV 会报但非真实恶意）",
+      "note": "计划书示例值；用于验证不误报良性样本为高危"
+    },
+    {
+      "id": "fuzzy-001",
+      "category": "模糊描述",
+      "input": "近期 AsyncRAT 常用的 C2 域名有哪些",
+      "ioc_type": "ambiguous",
+      "expected": { "threat_level": "中危", "conflict": false, "partial": true },
+      "ground_truth_source": "LLM.parse_ambiguous → 解析为具体 C2 域名后再研判（需 ThreatFox/公开报告佐证）",
+      "note": "验证 LLM 模糊解析介入点；expected 为解析后研判的预期区间"
+    },
+    {
+      "id": "missing-001",
+      "category": "缺失",
+      "input": "<TODO: 取 URLhaus 当日新注册短期恶意域名>",
+      "ioc_type": "domain",
+      "expected": { "threat_level": "中危", "conflict": false, "partial": true },
+      "ground_truth_source": "URLhaus(有) + OTX(无) 构造",
+      "note": "构造方法：选 URLhaus 当日 URL 中提取的新域名，其 OTX 通常暂无脉冲 → 单源检出，verdict 应为中危/review 且 partial=true",
+      "todo": true
+    },
+    {
+      "id": "conflict-001",
+      "category": "冲突",
+      "input": "<TODO: 选取 VT 干净但 Feodo 命中的边界样本>",
+      "ioc_type": "ipv4",
+      "expected": { "threat_level": "中危", "conflict": true, "partial": false },
+      "ground_truth_source": "公开报告 + 两侧源人工标注",
+      "note": "构造方法：Feodo 列表中的 sinkhole/历史 C2，VT 可能已无检出 → 源间矛盾，conflict=true，verdict 取较强一侧并建议人工复核",
+      "todo": true
+    },
+    {
+      "id": "conflict-002",
+      "category": "冲突",
+      "input": "<TODO: 选取 VT 报毒但 AbuseIPDB 评分低的样本>",
+      "ioc_type": "ipv4",
+      "expected": { "threat_level": "中危", "conflict": true, "partial": false },
+      "ground_truth_source": "IEEE IP 分类集中多源分歧样本 / 公开报告",
+      "note": "可用 IEEE IP 分类数据集（需 IEEE 账号）中 sources 分歧的 IP 作为冲突真值",
+      "todo": true
+    }
+  ]
+}
