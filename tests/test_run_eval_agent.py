@@ -132,13 +132,28 @@ def _fake_result() -> dict:
             'rules_variant': 'official', 'rule_count': 2815,
             'review_stats': {'reviewed': 106, 'by_verdict': {'attack': 39, 'benign': 34, 'unknown': 33},
                              'dropped': 34, 'kept_with_reason': 72},
-            'dropped_techniques': ['T1685'],
+            'dropped_techniques': ['T1033', 'T1526', 'T1685'],
             'chain_summary': '共识别 12 个技术，覆盖 4 个战术阶段',
             'technique_count': 12,
-            'metrics': metrics(0.40, 1.0),
+            'metrics': metrics(0.444, 1.0),
             'chain_visible_reviews': [
                 {'technique_id': 'T1685', 'event_uid': 'f.json:918', 'score': 1.0,
                  'verdict': 'benign', 'reason': '常规用户执行', 'confidence': 0.5, 'source': 'mock'},
+            ],
+        },
+        'v2': {
+            'chain_summary': '共识别 12 个技术，覆盖 4 个战术阶段',
+            'technique_count': 12,
+            'metrics': metrics(0.40, 1.0),
+            'dropped_techniques': ['T1685'],
+        },
+        'conflict': {
+            'groups_reviewed': 8,
+            'groups_remaining': 5,
+            'dropped': [['T1033', 'f.json:1820']],
+            'decisions': [
+                {'event_uid': 'f.json:148', 'candidates': ['T1526', 'T1087', 'T1083'],
+                 'primary': 'T1087', 'dropped': ['T1526', 'T1083'], 'reason': 'Seatbelt 为主机侦察', 'source': 'llm'},
             ],
         },
         'baseline_v1': {'precision': 0.364, 'recall': 1.0, 'stage_recall': 1.0,
@@ -153,9 +168,12 @@ def test_render_agent_report_deterministic():
 
 def test_render_agent_report_marks_delta_and_dropped():
     text = render_agent_report(_fake_result())
-    assert '36.4%' in text and '40.0%' in text and '+3.6pp' in text
-    assert '`T1685`' in text
+    assert '36.4%' in text and '40.0%' in text and '44.4%' in text
+    assert '+8.0pp' in text  # 0.444 - 0.364
+    assert '`T1685`' in text and '`T1033`' in text
     assert '送审 106 条' in text
+    assert '8 组' in text and '5 组' in text  # 冲突收敛（§12.5）
+    assert 'Seatbelt 为主机侦察' in text  # 裁决 reason 落地
     assert 'Agent 比脚本强' in text or 'precision 提升' in text
 
 
@@ -172,32 +190,51 @@ def test_render_agent_report_warns_on_recall_drop():
 # -- §8 验收：mock 端到端可复现 ---------------------------------------------------
 
 def test_run_eval_agent_mock_end_to_end(tmp_path):
-    """mock 全流程：recall 保持 100%、precision 高于 v1、全部低分技术带 reason、产物落盘、可复现。"""
+    """mock 全流程（04 §8 + §12.5）：recall 100%、precision 逐级提升、产物落盘、可复现。"""
     result = run_eval_agent(mock=True, out_dir=tmp_path)
 
-    # 验收：指标与筛选
-    a = result['agent']['metrics']['technique_metrics']
+    # 验收：三级指标（mock 确定性数字）
+    a = result['agent']['metrics']['technique_metrics']          # v3 冲突裁决后
+    v2 = result['v2']['metrics']['technique_metrics']            # v2 低分复核后
     b = result['baseline_v1']
     assert result['mock'] is True
-    assert a['recall'] == b['recall'] == 1.0          # recall 不下降
-    assert a['precision'] > b['precision']            # mock 下 0.40 > 0.364（确定性）
+    assert a['recall'] == v2['recall'] == b['recall'] == 1.0     # recall 永不下降（金标硬约束）
+    assert b['precision'] < v2['precision'] < a['precision']     # 0.364 < 0.40 < 0.50（确定性）
     assert result['agent']['review_stats']['reviewed'] == 106
-    assert result['agent']['dropped_techniques'] == ['T1685']  # 链 diff 语义：唯一被整体剔除的技术
+    assert result['agent']['dropped_techniques'] == ['T1033', 'T1526', 'T1685']  # 链 diff 语义
     assert all(r['reason'] for r in result['agent']['chain_visible_reviews'])
 
-    # 验收：产物落盘 + v2 快照
+    # §12.5 验收：冲突收敛 + 裁决记录带 reason
+    conf = result['conflict']
+    assert conf['groups_reviewed'] == 8 and conf['groups_remaining'] == 5  # 与文档热点吻合
+    assert all(record['reason'] for record in conf['decisions'])
+
+    # 验收：产物落盘 + v3 快照（v2 快照为历史固化物）
     for name in ('metrics_agent.json', 'report_agent.md'):
         assert (tmp_path / name).exists(), name
-        assert (tmp_path / 'baseline' / 'v2-agent-lowscore-review' / name).exists(), name
+        assert (tmp_path / 'baseline' / 'v3-agent-conflict-review' / name).exists(), name
+
+    # 04 §13 验收：报告解释层（纯展示层）产物 + 完整性（链上技术 100% 覆盖）
+    report_md = tmp_path / 'agent_attack_chain_report.md'
+    assert report_md.exists(), 'agent_attack_chain_report.md 未生成（§13 接入）'
+    text = report_md.read_text(encoding='utf-8')
+    assert '攻击链分析报告' in text
+    mj = json.loads((tmp_path / 'metrics_agent.json').read_text(encoding='utf-8'))
+    raw_techs = mj['agent']['metrics']['predicted_techniques_raw']
+    missing = [t for t in raw_techs if f'### {t}' not in text]
+    assert not missing, f'报告缺失技术: {missing}（§13.4 完整性）'
+    # 纯展示层红线：报告生成不改变指标（mock 可复现已在下方断言）
 
     # 验收：metrics 文件不含载荷原文（完整上下文只在 jsonl 审计日志）
     mj = json.loads((tmp_path / 'metrics_agent.json').read_text(encoding='utf-8'))
     assert all('context' not in r for r in mj['agent']['chain_visible_reviews'])
+    assert all('context' not in r for r in mj['conflict']['decisions'])
 
     # 验收：可复现（md5 确定性 mock）——同输入重跑指标一致
     result2 = run_eval_agent(mock=True, out_dir=tmp_path)
     assert result2['agent']['metrics'] == result['agent']['metrics']
     assert result2['agent']['review_stats'] == result['agent']['review_stats']
+    assert result2['conflict'] == result['conflict']
 
 
 def test_real_evidence_context_non_empty():

@@ -219,7 +219,7 @@
     ],
     "rule_count": 2816,
     "rules_variant": "official+custom",
-    "elapsed_sec": 37.5,
+    "elapsed_sec": 11.6,
     "gold_techniques": [
       "T1059.001",
       "T1003.001",

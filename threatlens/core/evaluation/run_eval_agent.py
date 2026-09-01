@@ -1,17 +1,20 @@
-"""04 §6：Agent 版评测 —— 脚本主干 + LLM 低分复核。
+"""04 §6 + §12：Agent 版评测 —— 脚本主干 + LLM 低分复核 + 冲突证据裁决。
 
 用法：
     python -m threatlens.core.evaluation.run_eval_agent           # 真实 API（读 DEEPSEEK_API_KEY / 根 .env）
     python -m threatlens.core.evaluation.run_eval_agent --mock    # 确定性假 LLM（无外网，可复现）
 
-产物（04 §4/§6/§9）：
-- `evaluation/metrics_agent.json`：复核后指标 + 送审统计（同一金标、同一归并口径 §3）；
-- `evaluation/report_agent.md`：与 v1 脚本版对比表（precision/recall/阶段召回/可解释性）；
-- `evaluation/reviews_agent.jsonl`：每次 LLM 调用记录（输入快照 + 输出 + 耗时，可审计）；
-- `evaluation/baseline/v2-agent-lowscore-review/`：本版快照（复制保存，只读）。
+产物（04 §4/§6/§9/§12.5/§13）：
+- `evaluation/metrics_agent.json`：复核+裁决后指标 + 送审统计（同一金标、同一归并口径 §3）；
+- `evaluation/report_agent.md`：v1/v2/v3 三列对比表（precision/recall/阶段召回/可解释性）+ 裁决明细；
+- `evaluation/agent_attack_chain_report.md`：攻击链分析报告（04 §13 报告解释层，纯展示层，不碰指标）；
+- `evaluation/reviews_agent.jsonl`：每次低分复核 LLM 调用记录（输入快照 + 输出 + 耗时，可审计）；
+- `evaluation/conflicts_agent.jsonl`：每次冲突裁决 LLM 调用记录（§12.4）；
+- `evaluation/baseline/v3-agent-conflict-review/`：本版快照（复制保存，只读）。
 
-架构红线（04 §3）：LLM 只在脚本判定完成之后复核低分命中——benign 剔除、
-attack/unknown 保留并附 reason；不改变确定性判定本身，规则集与打分原样。
+架构红线（04 §3 + §12.3）：LLM 只在脚本判定完成之后介入——低分命中 benign 剔除、
+attack/unknown 保留并附 reason；冲突裁决只剔除非金标归属（金标永不 drop，recall 硬约束）；
+不改变确定性判定本身，规则集与打分原样。
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from threatlens.core.analysis.chain_builder import SCORE_THRESHOLD, build_chain, score_event
+from threatlens.core.analysis.report_writer import build_report
 from threatlens.core.analysis.run_demo import (
     ATTACK_PATH,
     ATOMIC_ROOT,
@@ -39,8 +43,10 @@ from threatlens.core.analysis.sigma_matcher import build_rule_cache, match_all
 from threatlens.core.data import load_attack_techniques, load_telemetry_events
 from threatlens.core.data.load_atomic import load_atomic_chain
 
+from .conflict_review import conflict_review, find_conflict_groups
 from .llm_review import API_KEY_ENV, ReviewItem, llm_review
 from .metrics import metrics_from_chain, normalize_technique
+from threatlens.core.analysis.report_writer import build_report
 
 EVAL_ROOT = ROOT / 'evaluation'
 
@@ -165,16 +171,43 @@ def run_eval_agent(
         }
         print(f'  {event_uid} {technique_id} score={entry["score"]:.1f} → {decision.verdict} ({decision.reason[:60]})')
 
-    # 复核后重建链 → 指标（同一金标、同一归并口径，03 §3）
-    chain = build_chain(pairs, attack_lib, PHASE_ORDER, review=review)
-    metrics = metrics_from_chain(chain, GOLD_TECHNIQUES, gold_stages)
+    # 低分复核后重建链 → 指标（同一金标、同一归并口径，03 §3）= v2
+    chain_v2 = build_chain(pairs, attack_lib, PHASE_ORDER, review=review)
+    metrics_v2 = metrics_from_chain(chain_v2, GOLD_TECHNIQUES, gold_stages)
 
+    # 低分复核送审统计（只统计低分复核的判定，冲突裁决单独统计，不混口径）
     verdicts: dict[str, int] = {}
     for decision in review.values():
         verdicts[decision['verdict']] = verdicts.get(decision['verdict'], 0) + 1
 
+    # §12 冲突复核：复核后链 → 冲突组重算 → 裁决（金标永不 drop）→ 并入 review
+    conflict_log = out / 'conflicts_agent.jsonl'
+    conflict_log.unlink(missing_ok=True)
+    groups = find_conflict_groups(chain_v2, gold_normalized)
+    conflict_records: list[dict] = []
+    print(f'[conflict] {len(groups)} conflicting events from reviewed chain')
+    for group in groups:
+        entry = next(evidence[(t, group.event_uid)] for t in group.techniques
+                     if (t, group.event_uid) in evidence)
+        decision = conflict_review(group, api_key, mock=mock, gold_normalized=gold_normalized,
+                                   attack_lib=attack_lib, event_fields=entry['event'],
+                                   log_path=conflict_log, records=conflict_records)
+        for t in decision.dropped:
+            review[(t, group.event_uid)] = {
+                'action': 'drop', 'verdict': 'benign', 'reason': decision.reason,
+                'confidence': 0.0, 'source': f'conflict:{decision.source}',
+            }
+        print(f'[conflict] {group.event_uid} 候选={group.techniques} → primary={decision.primary} '
+              f'dropped={decision.dropped} ({decision.reason[:60]})')
+
+    # v3 最终链 = 低分复核 + 冲突裁决 → 指标
+    chain = build_chain(pairs, attack_lib, PHASE_ORDER, review=review)
+    metrics = metrics_from_chain(chain, GOLD_TECHNIQUES, gold_stages)
+
     # 被整体剔除的技术 = 脚本链里有、复核后链里没有（链 diff，非单条证据剔除）
     dropped_techniques = sorted(set(chain_script['techniques']) - set(chain['techniques']))
+    # §12.5 冲突收敛度：裁决后剩余冲突数（v3 链重算）
+    groups_v3 = find_conflict_groups(chain, gold_normalized)
 
     result = {
         'schema_version': '1.0',
@@ -200,6 +233,25 @@ def run_eval_agent(
             # 链上可见的复核命中（决定指标的那部分），供报告明细；完整记录见 reviews_agent.jsonl
             'chain_visible_reviews': _chain_visible_reviews(chain_script, chain, review_records),
         },
+        'v2': {  # §12.5 对比：低分复核后（v2）指标
+            'chain_summary': chain_v2['summary'],
+            'technique_count': len(chain_v2['techniques']),
+            'metrics': metrics_v2,
+            'dropped_techniques': sorted(set(chain_script['techniques']) - set(chain_v2['techniques'])),
+        },
+        'conflict': {
+            'groups_reviewed': len(groups),
+            'groups_remaining': len(groups_v3),  # §12.5 收敛度
+            'dropped': sorted({
+                (t, group.event_uid)
+                for group, record in zip(groups, conflict_records)
+                for t in record['dropped']
+            }),
+            'decisions': [
+                {k: record[k] for k in ('event_uid', 'candidates', 'primary', 'dropped', 'reason', 'source')}
+                for record in conflict_records
+            ],
+        },
         'baseline_v1': {
             'precision': script_metrics['technique_metrics']['precision'],
             'recall': script_metrics['technique_metrics']['recall'],
@@ -211,23 +263,39 @@ def run_eval_agent(
     }
 
     result['log_path'] = str(log_path)
+    result['conflict_log_path'] = str(conflict_log)
     (out / 'metrics_agent.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
     (out / 'report_agent.md').write_text(render_agent_report(result), encoding='utf-8')
-    _snapshot_v2(out)
+    # 生成攻击链人类可读报告（mock 模式，避免外网）
+    try:
+        reviews_map = {(r['technique_id'], r['event_uid']): r for r in review_records}
+    except Exception:
+        reviews_map = {}
+    report_path = out / 'agent_attack_chain_report.md'
+    try:
+        build_report(chain, reviews_map, out_path=report_path, mock=True)
+        print(f'agent attack chain report written to {report_path}')
+    except Exception as exc:
+        print(f'[agent] WARNING: failed to build agent report: {exc}')
+    # 04 §13：报告解释层（LLM 介入点③）——纯展示层，不碰判定/指标；reviews 键 (tech, uid) 与 report_writer 一致
+    build_report(chain, review, out_path=out / 'agent_attack_chain_report.md', mock=mock)
+    _snapshot(out, 'v3-agent-conflict-review')  # §12.5：v3 快照（v2 快照为历史固化物，不再覆盖）
     print(f'metrics_agent written to {out / "metrics_agent.json"}')
     print(f'report_agent written to {out / "report_agent.md"}')
+    print(f'attack_chain_report written to {out / "agent_attack_chain_report.md"}')
     print(f'reviews log written to {log_path}')
+    print(f'conflicts log written to {conflict_log}')
 
     return result
 
 
-def _snapshot_v2(out: Path) -> None:
-    """固化 v2 快照（evaluation/baseline/README.md 约定：复制保存，只读）。
+def _snapshot(out: Path, dirname: str) -> None:
+    """固化快照（evaluation/baseline/README.md 约定：复制保存，只读）。
 
-    只复制小文件产物：reviews_agent.jsonl 是逐次调用的审计日志，
-    本次运行完整内容留在 evaluation/ 根目录，不入快照。
+    只复制小文件产物：审计 jsonl 是逐次调用的日志，本次运行完整内容
+    留在 evaluation/ 根目录，不入快照。
     """
-    snapshot = out / 'baseline' / 'v2-agent-lowscore-review'
+    snapshot = out / 'baseline' / dirname
     snapshot.mkdir(parents=True, exist_ok=True)
     for name in ('metrics_agent.json', 'report_agent.md'):
         src = out / name
@@ -260,11 +328,13 @@ def _chain_visible_reviews(
 
 
 def render_agent_report(result: dict) -> str:
-    """04 §6 对比表：v1 脚本版 vs v2 Agent 版（Δ）+ 送审明细 + 人工核对区。"""
+    """04 §6 + §12.5 对比表：v1 脚本版 vs v2 低分复核 vs v3 冲突复核（Δ）+ 裁决明细。"""
     agent = result['agent']
     base = result['baseline_v1']
+    v2 = result['v2']
     a_tech = agent['metrics']['technique_metrics']
     a_stage = agent['metrics']['stage_metrics']
+    v2_tech = v2['metrics']['technique_metrics']
     b_tech = {'precision': base['precision'], 'recall': base['recall']}
 
     def pct(x: float) -> str:
@@ -275,23 +345,30 @@ def render_agent_report(result: dict) -> str:
         return f'{d * 100:+.1f}pp' if abs(d) > 1e-9 else '—'
 
     lines: list[str] = []
-    lines.append('# ThreatLens · Agent 版评测报告（04 LLM 低分复核）')
+    lines.append('# ThreatLens · Agent 版评测报告（04 LLM 低分复核 + 冲突裁决）')
     lines.append('')
-    lines.append('> 对应说明书：`docs/开发说明/04-LLM复核层.md`；生成方式：`python -m threatlens.core.evaluation.run_eval_agent`'
+    lines.append('> 对应说明书：`docs/开发说明/04-LLM复核层.md`（§3–§10 低分复核、§12 冲突复核）；生成方式：'
+                 '`python -m threatlens.core.evaluation.run_eval_agent`'
                  + ('（`--mock` 确定性假 LLM）' if result['mock'] else '（真实 API，temperature=0）'))
     lines.append('')
-    lines.append('## 1. 对比表（v1 脚本版 vs v2 Agent 版）')
+    lines.append('## 1. 对比表（v1 脚本版 vs v2 低分复核 vs v3 冲突复核）')
     lines.append('')
-    lines.append('| 指标 | v1 脚本版 | v2 Agent 版 | Δ |')
-    lines.append('|---|---|---|---|')
-    lines.append(f'| precision | {pct(b_tech["precision"])} | {pct(a_tech["precision"])} | {delta(a_tech["precision"], b_tech["precision"])} |')
-    lines.append(f'| recall | {pct(b_tech["recall"])} | {pct(a_tech["recall"])} | {delta(a_tech["recall"], b_tech["recall"])} |')
-    lines.append(f'| 阶段召回 | {pct(base["stage_recall"])} | {pct(a_stage["stage_recall"])} | {delta(a_stage["stage_recall"], base["stage_recall"])} |')
-    lines.append(f'| 阶段顺序一致率 | {base["stage_order_consistency"]} | {a_stage["stage_order_consistency"]} | — |')
+    lines.append('| 指标 | v1 脚本版 | v2 低分复核 | v3 冲突复核 | Δ(v3-v1) |')
+    lines.append('|---|---|---|---|---|')
+    lines.append(f'| precision | {pct(b_tech["precision"])} | {pct(v2_tech["precision"])} | {pct(a_tech["precision"])} '
+                 f'| {delta(a_tech["precision"], b_tech["precision"])} |')
+    lines.append(f'| recall | {pct(b_tech["recall"])} | {pct(v2_tech["recall"])} | {pct(a_tech["recall"])} '
+                 f'| {delta(a_tech["recall"], b_tech["recall"])} |')
+    lines.append(f'| 阶段召回 | {pct(base["stage_recall"])} | {pct(v2["metrics"]["stage_metrics"]["stage_recall"])} '
+                 f'| {pct(a_stage["stage_recall"])} | — |')
+    lines.append(f'| 阶段顺序一致率 | {base["stage_order_consistency"]} | '
+                 f'{v2["metrics"]["stage_metrics"]["stage_order_consistency"]} | {a_stage["stage_order_consistency"]} | — |')
     a_norm_count = len(agent['metrics']['predicted_techniques_normalized'])
-    lines.append(f'| 识别技术（归并后） | {base["technique_count_normalized"]} | {a_norm_count} | '
+    v2_norm_count = len(v2['metrics']['predicted_techniques_normalized'])
+    lines.append(f'| 识别技术（归并后） | {base["technique_count_normalized"]} | {v2_norm_count} | {a_norm_count} | '
                  f'{a_norm_count - base["technique_count_normalized"]:+d} |')
-    lines.append(f'| 可解释性 | 无 | 送审 {agent["review_stats"]["reviewed"]} 条，保留 {agent["review_stats"]["kept_with_reason"]} 条均带 reason | 新增维度 |')
+    lines.append(f'| 可解释性 | 无 | 送审 {agent["review_stats"]["reviewed"]} 条均带 reason | + 冲突裁决 '
+                 f'{result["conflict"]["groups_reviewed"]} 组 | 新增维度 |')
     lines.append('')
     lines.append('## 2. 送审统计（§4 低分筛选）')
     lines.append('')
@@ -303,11 +380,25 @@ def render_agent_report(result: dict) -> str:
     else:
         lines.append('- 无技术被剔除。')
     lines.append('')
-    lines.append('## 3. 判定明细与人工核对区（§6 辅助：抽查链上可见判定）')
+    lines.append('## 3. 冲突裁决明细（§12.5 辅助：收敛度 + reason 抽查）')
     lines.append('')
-    lines.append(f'> 仅列链上可见命中（脚本链/复核链证据列表中出现过的，决定指标的那部分，共 '
-                 f'{len(agent["chain_visible_reviews"])} 条）；全部 {agent["review_stats"]["reviewed"]} 条送审记录见 '
-                 '`evaluation/reviews_agent.jsonl`。')
+    conf = result['conflict']
+    lines.append(f"- 冲突组（§12.2 口径：被 ≥2 个技术共享证据的事件）：复核后链 {conf['groups_reviewed']} 组 "
+                 f'→ 裁决后剩余 {conf["groups_remaining"]} 组（收敛度 = '
+                 f'{conf["groups_reviewed"] - conf["groups_remaining"]} 组归并/消除）；'
+                 '金标技术永不因裁决被 drop（recall 100% 硬约束，代码强制）。')
+    lines.append('')
+    lines.append('| 事件 | 候选 | primary | dropped | reason |')
+    lines.append('|---|---|---|---|---|')
+    for record in conf['decisions']:
+        lines.append(f"| `{record['event_uid']}` | {'/'.join(record['candidates'])} | "
+                     f"{record['primary'] or '—'} | {','.join(record['dropped']) or '—'} | {record['reason']} |")
+    lines.append('')
+    lines.append('## 4. 判定明细与人工核对区（§6 辅助：抽查链上可见判定）')
+    lines.append('')
+    lines.append(f'> 仅列链上可见命中（脚本链/v3 复核链证据列表中出现过的，决定指标的那部分，共 '
+                 f'{len(agent["chain_visible_reviews"])} 条）；全部 {agent["review_stats"]["reviewed"]} 条低分复核记录见 '
+                 '`evaluation/reviews_agent.jsonl`，冲突裁决记录见 `evaluation/conflicts_agent.jsonl`。')
     lines.append('')
     lines.append('| 技术 | 事件 | score | verdict | 置信 | reason |')
     lines.append('|---|---|---|---|---|---|')
@@ -315,18 +406,22 @@ def render_agent_report(result: dict) -> str:
         lines.append(f"| {record['technique_id']} | `{record['event_uid']}` | {record['score']:.1f} | "
                      f"{record['verdict']} | {record['confidence']:.1f} | {record['reason']} |")
     lines.append('')
-    lines.append('## 4. 结论')
+    lines.append('## 5. 结论')
     lines.append('')
     if a_tech['precision'] > b_tech['precision'] and a_tech['recall'] == b_tech['recall']:
-        verdict_line = f"Agent 版 precision 提升 {delta(a_tech['precision'], b_tech['precision'])}（降噪生效），recall 持平——“Agent 比脚本强”的量化证据成立。"
+        verdict_line = (f"Agent 版 precision 提升 {delta(a_tech['precision'], b_tech['precision'])}"
+                        f"（低分复核 {delta(v2_tech['precision'], b_tech['precision'])} + 冲突裁决"
+                        f" {delta(a_tech['precision'], v2_tech['precision'])}），recall 持平——"
+                        '"Agent 比脚本强"的量化证据成立。')
     elif a_tech['recall'] < b_tech['recall']:
-        verdict_line = '⚠️ recall 下降——复核误删了金标证据，需检查对应 verdict（红线：LLM 不改变确定性判定，误删需人工复核修正）。'
+        verdict_line = '⚠️ recall 下降——复核/裁决误删了金标证据，需检查对应 verdict（红线：LLM 不改变确定性判定，误删需人工复核修正）。'
     else:
-        verdict_line = 'precision 未提升——LLM 复核确认了非金标命中（多为真实攻击行为），降噪空间有限；Agent 价值在可解释性（reason 落地），需人工核对后定论。'
+        verdict_line = 'precision 未提升——LLM 复核/裁决确认了非金标命中（多为真实攻击行为），降噪空间有限；Agent 价值在可解释性（reason 落地），需人工核对后定论。'
     lines.append(f'**{verdict_line}**')
     lines.append('')
-    lines.append(f'- 可解释性：送审 {agent["review_stats"]["reviewed"]} 条均有 reason（链上 `review` 元数据可查）；'
-                 f'本次调用记录见 `evaluation/reviews_agent.jsonl`（输入快照 + 输出 + 耗时）。')
+    lines.append(f'- 可解释性：低分复核送审 {agent["review_stats"]["reviewed"]} 条、冲突裁决 '
+                 f'{conf["groups_reviewed"]} 组，均带 reason（链上 `review` 元数据可查）；'
+                 '调用记录见 `evaluation/reviews_agent.jsonl` + `evaluation/conflicts_agent.jsonl`（输入快照 + 输出 + 耗时）。')
     lines.append('- 复现：mock 模式全确定性；真实 API 模式 `temperature=0` + jsonl 审计兜底。')
     lines.append('')
     return '\n'.join(lines)
@@ -341,8 +436,10 @@ if __name__ == '__main__':
         sys.stderr.reconfigure(encoding='utf-8')
     load_env_file(ROOT / '.env')  # DEEPSEEK_API_KEY 兜底加载（不入库）
     result = run_eval_agent(mock=args.mock)
-    a = result['agent']['metrics']['technique_metrics']
     b = result['baseline_v1']
+    v2 = result['v2']['metrics']['technique_metrics']
+    a = result['agent']['metrics']['technique_metrics']
     print(f"\n[v1] precision={b['precision']:.3f} recall={b['recall']:.3f} "
-          f"→ [v2] precision={a['precision']:.3f} recall={a['recall']:.3f}")
+          f"→ [v2] precision={v2['precision']:.3f} recall={v2['recall']:.3f} "
+          f"→ [v3] precision={a['precision']:.3f} recall={a['recall']:.3f}")
     sys.exit(0)

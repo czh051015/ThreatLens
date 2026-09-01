@@ -15,6 +15,7 @@ from threatlens.core.analysis.chain_builder import build_chain
 from threatlens.core.analysis.sigma_matcher import build_rule_cache, match_all
 from threatlens.core.data import load_attack_techniques, load_telemetry_events
 from threatlens.core.data.load_atomic import load_atomic_chain
+from threatlens.core.analysis.report_writer import build_report
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -80,6 +81,10 @@ def run_demo(
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(chain, ensure_ascii=False, indent=2), encoding='utf-8')
         print(f'chain written to {out}')
+        # 同步生成 Markdown 报告（开发阶段 mock）
+        report_out = ROOT / 'outputs' / 'attack_chain_report.md'
+        build_report(chain, {}, out_path=report_out, mock=True)
+        print(f'report written to {report_out}')
 
     print('\n' + chain['summary'])
     return chain

@@ -1,32 +1,16 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import timezone
 from pathlib import Path
 from typing import Any
+from pydantic import ValidationError
+
+from .schema import NormalizedEvent
+from .utils import _to_iso_utc
 
 
-def _to_iso_utc(value: Any) -> str | None:
-    if value is None:
-        return None
-
-    if isinstance(value, datetime):
-        dt = value
-    else:
-        text = str(value).strip()
-        if not text:
-            return None
-        try:
-            dt = datetime.fromisoformat(text.replace('Z', '+00:00'))
-        except ValueError:
-            try:
-                dt = datetime.strptime(text, '%Y-%m-%d %H:%M:%S')
-            except ValueError:
-                return None
-
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+# _to_iso_utc moved to utils.py
 
 
 def _safe_int(value: Any) -> int | None:
@@ -84,7 +68,11 @@ def load_telemetry_events(path: str | Path) -> list[dict[str, Any]]:
                 'tactic_hint': None,
                 'raw': raw,
             }
-            events.append(event)
+            try:
+                norm = NormalizedEvent(**event)
+            except ValidationError as exc:
+                raise ValueError(f'{source.name}:{lineno}: {exc}') from exc
+            events.append(norm.model_dump())
 
     return events
 
